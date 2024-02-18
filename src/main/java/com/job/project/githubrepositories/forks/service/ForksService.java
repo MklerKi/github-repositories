@@ -15,6 +15,10 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -22,29 +26,37 @@ public class ForksService {
 
     private final RestTemplate restTemplate;
 
+    private final ExecutorService executorService = Executors.newFixedThreadPool(10); // Adjust the number of threads as needed
+
     public List<GithubRepos> getAllForksForUser(String username) throws HttpClientErrorException {
         String uri = "https://api.github.com/users/" + username + "/repos";
 
         try {
             String result = restTemplate.getForObject(uri, String.class);
 
-            List<GithubRepos> userRepos = new ArrayList<>();
-
             JSONArray repositories = new JSONArray(result);
+
+            List<CompletableFuture<GithubRepos>> futures = new ArrayList<>();
+
             for (int i = 0; i < repositories.length(); i++) {
                 JSONObject repo = (JSONObject) repositories.get(i);
                 if (!repo.getBoolean("fork")) {
-                    GithubRepos userRepo = GithubRepos.builder()
-                            .name(repo.getString("name"))
-                            .owner(repo.getJSONObject("owner").getString("login"))
-                            .build();
-                    String branchUrl = repo.getString("branches_url").replaceAll("\\{.*\\}", "");
-                    userRepo.setBrunches(getBrunches(branchUrl));
-                    userRepos.add(userRepo);
+                    CompletableFuture<GithubRepos> future = CompletableFuture.supplyAsync(() -> {
+                        GithubRepos userRepo = null;
+                        try {
+                            userRepo = fetchUserRepo(repo);
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
+                        return userRepo;
+                    }, executorService);
+                    futures.add(future);
                 }
             }
 
-            return userRepos;
+            return futures.stream()
+                    .map(CompletableFuture::join)
+                    .collect(Collectors.toList());
         } catch (HttpClientErrorException e) {
             e.printStackTrace();
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found");
@@ -55,6 +67,14 @@ public class ForksService {
             e.printStackTrace();
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Error occurred while processing GitHub API response.");
         }
+    }
+
+    private GithubRepos fetchUserRepo(JSONObject repo) throws JSONException {
+        String name = repo.getString("name");
+        String owner = repo.getJSONObject("owner").getString("login");
+        String branchUrl = repo.getString("branches_url").replaceAll("\\{.*\\}", "");
+        List<Brunch> brunches = getBrunches(branchUrl);
+        return GithubRepos.builder().name(name).owner(owner).brunches(brunches).build();
     }
 
     public List<Brunch> getBrunches(String url) {
