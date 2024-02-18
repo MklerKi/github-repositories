@@ -136,4 +136,4 @@ Contributions to this project are welcome and encouraged! If you'd like to contr
 - By contributing to this project, you agree to license your contributions under the MIT License. Thank you for helping to improve this project!
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE]() file for details.
+This project is licensed under the MIT License - see the [LICENSE](https://github.com/MklerKi/github-repositories/blob/main/LICENSE) file for details.
