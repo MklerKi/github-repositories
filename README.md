@@ -76,7 +76,7 @@ Replace {username} with the GitHub username of the user whose repositories you w
 
 #### Example Request
 ```bash
-GET /api/v1/getAllForksForUser/johndoe
+GET /api/v1/getAllForksForUser/MklerKi
 ```
 #### Example Response
 ```bash
